@@ -1,3 +1,301 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ─── Design tokens ──────────────────────────────────────── */
+:root {
+  --bg:        #0a0a0f;
+  --surface:   #111118;
+  --surface2:  #1a1a24;
+  --border:    #2a2a38;
+  --text:      #e8e8f0;
+  --muted:     #6b6b85;
+  --accent:    #6366f1;
+  --accent-lo: #6366f122;
+  --green:     #10b981;
+  --amber:     #f59e0b;
+  --red:       #ef4444;
+  --radius:    12px;
+  --radius-lg: 20px;
+}
+
+/* ─── Base ───────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { font-size: 16px; -webkit-font-smoothing: antialiased; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Sans', 'Segoe UI', system-ui, sans-serif;
+  min-height: 100dvh;
+}
+
+/* ─── App shell ──────────────────────────────────────────── */
+.app-shell { display: flex; flex-direction: column; min-height: 100dvh; }
+
+.top-nav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.nav-logo { font-weight: 800; font-size: 1.1rem; letter-spacing: -0.02em; flex: 1; }
+.nav-role  { font-size: 0.85rem; color: var(--muted); }
+.nav-exit  {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 4px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: all .15s;
+}
+.nav-exit:hover { border-color: var(--red); color: var(--red); }
+
+.main-content { flex: 1; overflow-y: auto; }
+
+/* ─── Role select screen ─────────────────────────────────── */
+.role-screen {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 20px;
+  background: radial-gradient(ellipse 80% 60% at 50% 0%, #6366f118 0%, transparent 70%);
+}
+
+.role-hero { text-align: center; margin-bottom: 48px; }
+.role-logo { font-size: 3rem; display: block; margin-bottom: 16px; }
+.role-hero h1 {
+  font-size: clamp(2rem, 6vw, 3.5rem);
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  background: linear-gradient(135deg, #e8e8f0 0%, #6366f1 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.role-hero p { color: var(--muted); margin-top: 8px; font-size: 1rem; }
+
+.role-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 16px;
+  width: 100%;
+  max-width: 700px;
+}
+
+.role-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 28px 20px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+  transition: all .2s;
+}
+.role-card:hover {
+  border-color: var(--accent);
+  background: var(--accent-lo);
+  transform: translateY(-3px);
+}
+.role-icon { font-size: 2rem; }
+.role-card strong { font-size: 1rem; font-weight: 700; color: var(--text); }
+.role-card span    { font-size: 0.78rem; color: var(--muted); }
+
+/* ─── Page layout ────────────────────────────────────────── */
+.page { max-width: 760px; margin: 0 auto; padding: 24px 16px 48px; }
+
+.page-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.page-header h1 { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.02em; }
+
+.badge {
+  background: var(--accent-lo);
+  color: var(--accent);
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+/* ─── Filter bar ─────────────────────────────────────────── */
+.filter-bar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.filter-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 5px 14px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: all .15s;
+}
+.filter-btn:hover  { color: var(--text); border-color: var(--text); }
+.filter-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* ─── Order cards ────────────────────────────────────────── */
+.order-list { display: flex; flex-direction: column; gap: 12px; }
+
+.order-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  transition: border-color .2s;
+}
+.order-card:hover { border-color: var(--accent); }
+
+.order-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.order-restaurant { font-weight: 700; font-size: 1rem; margin-bottom: 4px; }
+.order-address    { font-size: 0.85rem; color: var(--muted); margin-bottom: 2px; }
+.order-client     { font-size: 0.82rem; color: var(--muted); }
+
+.order-right      { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.order-price      { font-size: 0.9rem; font-weight: 700; color: var(--text); }
+
+.status-pill {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.order-actions { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ─── Buttons ────────────────────────────────────────────── */
+.btn {
+  border: none;
+  border-radius: 10px;
+  padding: 8px 18px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .15s;
+}
+.btn:hover { filter: brightness(1.15); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-green   { background: var(--green);  color: #fff; }
+.btn-amber   { background: var(--amber);  color: #000; }
+.btn-red     { background: var(--red);    color: #fff; }
+
+/* ─── Form ───────────────────────────────────────────────── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+}
+.form { display: flex; flex-direction: column; gap: 10px; }
+
+.form-label { font-size: 0.8rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+
+.form-input {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  padding: 10px 14px;
+  font-size: 0.9rem;
+  outline: none;
+  transition: border-color .15s;
+  width: 100%;
+}
+.form-input:focus { border-color: var(--accent); }
+.form-input option { background: var(--surface2); }
+
+.success-msg { color: var(--green); font-size: 0.88rem; font-weight: 600; }
+
+/* ─── Progress track (Client) ────────────────────────────── */
+.progress-track {
+  display: flex;
+  align-items: center;
+  margin-top: 14px;
+  gap: 0;
+}
+.progress-dot  { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; transition: background .3s; }
+.progress-line { flex: 1; height: 2px; transition: background .3s; }
+
+/* ─── Section title ──────────────────────────────────────── */
+.section-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+
+/* ─── Analytics ──────────────────────────────────────────── */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+}
+@media (min-width: 480px) { .stats-grid { grid-template-columns: repeat(4, 1fr); } }
+
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  text-align: center;
+}
+.stat-label { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
+.stat-value { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.02em; }
+
+.chart-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  margin-bottom: 16px;
+  overflow-x: auto;
+}
+
+/* ─── States ─────────────────────────────────────────────── */
+.loader { text-align: center; color: var(--muted); padding: 48px 0; font-size: 0.9rem; }
+.empty  { text-align: center; color: var(--muted); padding: 48px 0; font-size: 0.9rem; }
+
+.waiting-label {
+  font-size: 0.85rem;
+  color: var(--amber);
+  font-weight: 600;
+  margin-top: 8px;
+}
+
+/* ─── Scrollbar ──────────────────────────────────────────── */
+::-webkit-scrollbar       { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }

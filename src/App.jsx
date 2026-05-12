@@ -1,31 +1,39 @@
-import React from "react";
+import React, { useState } from "react";
+import RoleSelect from "./pages/RoleSelect.jsx";
 import Admin from "./pages/Admin.jsx";
 import Client from "./pages/Client.jsx";
 import Courier from "./pages/Courier.jsx";
 import Restaurant from "./pages/Restaurant.jsx";
 import AnalyticsPanel from "./pages/AnalyticsPanel.jsx";
 
+const ROLE_LABELS = {
+  admin: "🎛️ Диспетчер",
+  restaurant: "🍳 Заведение",
+  courier: "🛵 Курьер",
+  client: "🛍️ Клиент",
+  analytics: "📊 Аналитика",
+};
+
 export default function App() {
-  // Для теста можно переключать страницу вручную
-  const [page, setPage] = React.useState("admin");
+  const [role, setRole] = useState(null);
+
+  if (!role) return <RoleSelect onSelect={setRole} />;
 
   return (
-    <div>
-      <nav className="flex gap-2 p-2 bg-gray-900">
-        <button onClick={() => setPage("admin")}>Диспетчер</button>
-        <button onClick={() => setPage("restaurant")}>Заведение</button>
-        <button onClick={() => setPage("courier")}>Курьер</button>
-        <button onClick={() => setPage("client")}>Клиент</button>
-        <button onClick={() => setPage("analytics")}>Аналитика</button>
+    <div className="app-shell">
+      <nav className="top-nav">
+        <span className="nav-logo">⚡ Delivery OS</span>
+        <span className="nav-role">{ROLE_LABELS[role]}</span>
+        <button className="nav-exit" onClick={() => setRole(null)}>Выйти</button>
       </nav>
 
-      <div className="p-5">
-        {page === "admin" && <Admin />}
-        {page === "restaurant" && <Restaurant />}
-        {page === "courier" && <Courier />}
-        {page === "client" && <Client orderId="testOrder" />}
-        {page === "analytics" && <AnalyticsPanel />}
-      </div>
+      <main className="main-content">
+        {role === "admin" && <Admin />}
+        {role === "restaurant" && <Restaurant />}
+        {role === "courier" && <Courier />}
+        {role === "client" && <Client />}
+        {role === "analytics" && <AnalyticsPanel />}
+      </main>
     </div>
   );
 }
