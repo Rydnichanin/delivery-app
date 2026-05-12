@@ -3,44 +3,52 @@ import {
   RecaptchaVerifier,
   signInWithPhoneNumber,
 } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
-import { auth, db } from "../firebase";
+import { auth } from "../firebase";
 
 export default function Login() {
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
-  const [step, setStep] = useState("phone"); // phone | code
+  const [step, setStep] = useState("phone");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const confirmRef = useRef(null);
-  const recaptchaRef = useRef(null);
+
+  const initRecaptcha = () => {
+    if (window.recaptchaVerifier) {
+      try { window.recaptchaVerifier.clear(); } catch {}
+      window.recaptchaVerifier = null;
+    }
+    window.recaptchaVerifier = new RecaptchaVerifier(
+      auth,
+      "recaptcha-container",
+      { size: "invisible" }
+    );
+  };
 
   useEffect(() => {
-    // Инициализируем невидимую reCAPTCHA
-    if (!window.recaptchaVerifier) {
-      window.recaptchaVerifier = new RecaptchaVerifier(
-        auth,
-        "recaptcha-container",
-        { size: "invisible" }
-      );
-    }
+    initRecaptcha();
   }, []);
 
   const sendCode = async () => {
     setError("");
-    if (!phone.trim()) return;
+    const raw = phone.replace(/\s/g, "");
+    const formatted = raw.startsWith("+") ? raw : "+7" + raw.replace(/\D/g, "").slice(-10);
+
+    if (formatted.length < 12) {
+      setError("Введите полный номер телефона");
+      return;
+    }
+
     setLoading(true);
     try {
-      const formatted = phone.startsWith("+") ? phone : "+7" + phone.replace(/\D/g, "").slice(-10);
+      if (!window.recaptchaVerifier) initRecaptcha();
       const confirm = await signInWithPhoneNumber(auth, formatted, window.recaptchaVerifier);
       confirmRef.current = confirm;
       setStep("code");
     } catch (e) {
-      setError("Ошибка отправки SMS. Проверьте номер.");
-      console.error(e);
-      // Сбрасываем reCAPTCHA при ошибке
-      window.recaptchaVerifier?.clear();
-      window.recaptchaVerifier = null;
+      // Показываем полный код ошибки
+      setError(`Ошибка: ${e.code} — ${e.message}`);
+      initRecaptcha();
     }
     setLoading(false);
   };
@@ -51,10 +59,8 @@ export default function Login() {
     setLoading(true);
     try {
       await confirmRef.current.confirm(code);
-      // onAuthStateChanged в AuthContext подхватит пользователя
     } catch (e) {
-      setError("Неверный код. Попробуйте ещё раз.");
-      console.error(e);
+      setError(`Ошибка: ${e.code} — ${e.message}`);
     }
     setLoading(false);
   };
@@ -76,7 +82,6 @@ export default function Login() {
               placeholder="+7 700 000 0000"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && sendCode()}
             />
             <button
               className="btn btn-primary login-btn"
@@ -97,7 +102,6 @@ export default function Login() {
               placeholder="000000"
               value={code}
               onChange={(e) => setCode(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && verifyCode()}
               autoFocus
             />
             <button
@@ -116,11 +120,23 @@ export default function Login() {
           </>
         )}
 
-        {error && <p className="error-msg">{error}</p>}
+        {error && (
+          <div style={{
+            background: "#ef444422",
+            border: "1px solid #ef4444",
+            borderRadius: 8,
+            padding: "10px 14px",
+            fontSize: "0.78rem",
+            color: "#ef4444",
+            wordBreak: "break-all",
+            lineHeight: 1.5
+          }}>
+            {error}
+          </div>
+        )}
 
         <div id="recaptcha-container" />
       </div>
     </div>
   );
-        }
-        
+}
