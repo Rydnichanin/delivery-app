@@ -1,22 +1,73 @@
+import React, { useState } from "react";
 import { useOrders, updateOrder } from "../data/ordersStore";
+import { STATUS_FLOW, statusLabel, statusColor } from "../data/statuses";
+
+const ALL_STATUSES = ["all", "new", "cooking", "ready", "delivering", "delivered"];
 
 export default function Admin() {
-  const orders = useOrders();
+  const { orders, loading } = useOrders();
+  const [filter, setFilter] = useState("all");
+
+  const visible = filter === "all" ? orders : orders.filter((o) => o.status === filter);
 
   return (
-    <div>
-      <h1 className="text-2xl font-bold mb-4">Диспетчер</h1>
-      <div className="space-y-2">
-        {orders.map(order => (
-          <div key={order.id} className="p-3 rounded-lg border border-gray-700">
-            <p><b>{order.restaurantName}</b> → {order.address}</p>
-            <p>Клиент: {order.clientName} | Статус: <b>{order.status}</b></p>
-            <div className="mt-2 flex gap-2">
-              <button className="bg-blue-600 px-3 py-1 rounded" onClick={() => updateOrder(order.id, { status: "cooking" })}>В готовку</button>
-              <button className="bg-amber-600 px-3 py-1 rounded" onClick={() => updateOrder(order.id, { status: "ready" })}>Готов к выдаче</button>
-            </div>
-          </div>
+    <div className="page">
+      <header className="page-header">
+        <h1>🎛️ Диспетчер</h1>
+        <span className="badge">{orders.length} заказов</span>
+      </header>
+
+      <div className="filter-bar">
+        {ALL_STATUSES.map((s) => (
+          <button
+            key={s}
+            className={`filter-btn ${filter === s ? "active" : ""}`}
+            onClick={() => setFilter(s)}
+          >
+            {s === "all" ? "Все" : statusLabel(s)}
+          </button>
         ))}
+      </div>
+
+      {loading && <div className="loader">Загрузка...</div>}
+
+      <div className="order-list">
+        {visible.map((order) => {
+          const flow = STATUS_FLOW[order.status];
+          return (
+            <div key={order.id} className="order-card">
+              <div className="order-card-top">
+                <div>
+                  <p className="order-restaurant">{order.restaurantName}</p>
+                  <p className="order-address">📍 {order.address}</p>
+                  <p className="order-client">👤 {order.clientName}</p>
+                </div>
+                <div className="order-right">
+                  <span
+                    className="status-pill"
+                    style={{ background: statusColor(order.status) + "33", color: statusColor(order.status) }}
+                  >
+                    {statusLabel(order.status)}
+                  </span>
+                  <p className="order-price">{order.price?.toLocaleString()} ₸</p>
+                </div>
+              </div>
+              {flow?.next && (
+                <div className="order-actions">
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => updateOrder(order.id, { status: flow.next })}
+                  >
+                    {flow.nextLabel}
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {!loading && visible.length === 0 && (
+          <div className="empty">Заказов нет</div>
+        )}
       </div>
     </div>
   );
