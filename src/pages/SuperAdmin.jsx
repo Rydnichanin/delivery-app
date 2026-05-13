@@ -4,24 +4,22 @@ import { collection, addDoc, onSnapshot, serverTimestamp, query, orderBy } from 
 import { auth, db } from "../firebase";
 import { useAuth } from "../context/AuthContext";
 import { createInvite } from "../data/invites";
+import BusinessDetail from "./BusinessDetail.jsx";
 
 const ROLES = ["director", "dispatcher", "restaurant", "courier", "analytics"];
 const ROLE_LABELS = {
-  director: "Директор",
-  dispatcher: "Диспетчер",
-  restaurant: "Заведение",
-  courier: "Курьер",
-  analytics: "Аналитик",
-  superadmin: "Супер-админ",
+  director: "Директор", dispatcher: "Диспетчер", restaurant: "Заведение",
+  courier: "Курьер", analytics: "Аналитик", superadmin: "Супер-админ",
 };
 
 export default function SuperAdmin() {
   const { user } = useAuth();
-  const [tab, setTab] = useState("users");
+  const [tab, setTab] = useState("businesses");
   const [users, setUsers] = useState([]);
   const [cities, setCities] = useState([]);
   const [businesses, setBusinesses] = useState([]);
   const [invites, setInvites] = useState([]);
+  const [selectedBusiness, setSelectedBusiness] = useState(null);
 
   const [newName, setNewName] = useState("");
   const [newRole, setNewRole] = useState("courier");
@@ -72,24 +70,39 @@ export default function SuperAdmin() {
     if (!newName.trim()) return;
     setSaving(true);
     const code = await createInvite({
-      name: newName.trim(),
-      role: newRole,
-      businessId: newBusinessId,
-      cityId: newCityId,
-      createdBy: user.uid,
+      name: newName.trim(), role: newRole,
+      businessId: newBusinessId, cityId: newCityId, createdBy: user.uid,
     });
     setGeneratedCode(code);
     setNewName(""); setNewCityId(""); setNewBusinessId("");
-    flash(`Код приглашения создан: ${code}`);
+    flash(`Код: ${code}`);
     setSaving(false);
   };
 
   const TABS = [
+    { id: "businesses", label: "🏢 Бизнесы" },
+    { id: "cities", label: "🏙️ Города" },
     { id: "users", label: "👥 Пользователи" },
     { id: "invites", label: "🎫 Приглашения" },
-    { id: "cities", label: "🏙️ Города" },
-    { id: "businesses", label: "🏢 Бизнесы" },
   ];
+
+  // Открыт конкретный бизнес
+  if (selectedBusiness) {
+    return (
+      <div className="page">
+        <header className="page-header">
+          <h1>🔧 Супер-админ</h1>
+          <button className="nav-exit" onClick={() => signOut(auth)}>Выйти</button>
+        </header>
+        <BusinessDetail
+          business={selectedBusiness}
+          cities={cities}
+          onBack={() => setSelectedBusiness(null)}
+          adminUid={user.uid}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="page">
@@ -98,11 +111,7 @@ export default function SuperAdmin() {
         <button className="nav-exit" onClick={() => signOut(auth)}>Выйти</button>
       </header>
 
-      {msg && (
-        <div className="success-banner" style={{ fontSize: "1rem", fontWeight: 700 }}>
-          {msg}
-        </div>
-      )}
+      {msg && <div className="success-banner">{msg}</div>}
 
       {generatedCode && (
         <div className="card" style={{ marginBottom: 16, textAlign: "center" }}>
@@ -110,15 +119,10 @@ export default function SuperAdmin() {
           <p style={{ fontSize: "2rem", fontWeight: 900, letterSpacing: "0.2em", color: "var(--accent)", margin: "12px 0" }}>
             {generatedCode}
           </p>
-          <p style={{ color: "var(--muted)", fontSize: "0.82rem" }}>
-            Отправьте этот код пользователю. Он введёт его при регистрации.
-          </p>
-          <button className="btn btn-primary" style={{ marginTop: 12 }} onClick={() => {
+          <button className="btn btn-primary" onClick={() => {
             navigator.clipboard?.writeText(generatedCode);
-            flash("Код скопирован ✓");
-          }}>
-            Скопировать
-          </button>
+            flash("Скопировано ✓");
+          }}>Скопировать</button>
         </div>
       )}
 
@@ -130,9 +134,65 @@ export default function SuperAdmin() {
         ))}
       </div>
 
+      {/* ── Бизнесы ── */}
+      {tab === "businesses" && (
+        <div>
+          <div className="card" style={{ marginBottom: 16 }}>
+            <h2 className="section-title">Добавить бизнес</h2>
+            <div className="form">
+              <input className="form-input" placeholder="Название бизнеса" value={newBizName} onChange={e => setNewBizName(e.target.value)} />
+              <select className="form-input" value={newBizCity} onChange={e => setNewBizCity(e.target.value)}>
+                <option value="">— выбрать город —</option>
+                {cities.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              <button className="btn btn-primary" onClick={addBusiness} disabled={saving}>+ Добавить</button>
+            </div>
+          </div>
+
+          <h2 className="section-title">Все бизнесы ({businesses.length})</h2>
+          <div className="order-list">
+            {businesses.map(b => (
+              <div key={b.id} className="order-card" style={{ cursor: "pointer" }}
+                onClick={() => setSelectedBusiness(b)}>
+                <div className="order-card-top">
+                  <div>
+                    <p className="order-restaurant">🏢 {b.name}</p>
+                    <p className="order-address">🏙️ {cities.find(c => c.id === b.cityId)?.name || "—"}</p>
+                  </div>
+                  <span style={{ color: "var(--accent)", fontSize: "1.2rem" }}>→</span>
+                </div>
+              </div>
+            ))}
+            {businesses.length === 0 && <div className="empty">Бизнесов пока нет</div>}
+          </div>
+        </div>
+      )}
+
+      {/* ── Города ── */}
+      {tab === "cities" && (
+        <div>
+          <div className="card" style={{ marginBottom: 16 }}>
+            <h2 className="section-title">Добавить город</h2>
+            <div className="form">
+              <input className="form-input" placeholder="Алматы" value={newCityName} onChange={e => setNewCityName(e.target.value)} />
+              <button className="btn btn-primary" onClick={addCity} disabled={saving}>+ Добавить</button>
+            </div>
+          </div>
+          <div className="order-list">
+            {cities.map(c => (
+              <div key={c.id} className="order-card">
+                <p className="order-restaurant">🏙️ {c.name}</p>
+              </div>
+            ))}
+            {cities.length === 0 && <div className="empty">Городов пока нет</div>}
+          </div>
+        </div>
+      )}
+
+      {/* ── Пользователи ── */}
       {tab === "users" && (
         <div>
-          <div className="card" style={{ marginBottom: 20 }}>
+          <div className="card" style={{ marginBottom: 16 }}>
             <h2 className="section-title">Создать приглашение</h2>
             <div className="form">
               <label className="form-label">Имя</label>
@@ -183,10 +243,11 @@ export default function SuperAdmin() {
         </div>
       )}
 
+      {/* ── Приглашения ── */}
       {tab === "invites" && (
         <div>
-          <h2 className="section-title">Активные приглашения</h2>
-          <div className="order-list">
+          <h2 className="section-title">Активные</h2>
+          <div className="order-list" style={{ marginBottom: 20 }}>
             {invites.filter(i => !i.used).map(i => (
               <div key={i.id} className="order-card">
                 <div className="order-card-top">
@@ -194,18 +255,16 @@ export default function SuperAdmin() {
                     <p className="order-restaurant">{i.name}</p>
                     <p className="order-address">{ROLE_LABELS[i.role] || i.role}</p>
                   </div>
-                  <div className="order-right">
-                    <span style={{ fontSize: "1.1rem", fontWeight: 900, letterSpacing: "0.1em", color: "var(--accent)" }}>
-                      {i.code}
-                    </span>
-                  </div>
+                  <span style={{ fontSize: "1.1rem", fontWeight: 900, letterSpacing: "0.1em", color: "var(--accent)" }}>
+                    {i.code}
+                  </span>
                 </div>
               </div>
             ))}
             {invites.filter(i => !i.used).length === 0 && <div className="empty">Нет активных приглашений</div>}
           </div>
 
-          <h2 className="section-title" style={{ marginTop: 24 }}>Использованные</h2>
+          <h2 className="section-title">Использованные</h2>
           <div className="order-list">
             {invites.filter(i => i.used).map(i => (
               <div key={i.id} className="order-card" style={{ opacity: 0.5 }}>
@@ -220,51 +279,6 @@ export default function SuperAdmin() {
                 </div>
               </div>
             ))}
-          </div>
-        </div>
-      )}
-
-      {tab === "cities" && (
-        <div>
-          <div className="card" style={{ marginBottom: 20 }}>
-            <h2 className="section-title">Добавить город</h2>
-            <div className="form">
-              <input className="form-input" placeholder="Алматы" value={newCityName} onChange={e => setNewCityName(e.target.value)} />
-              <button className="btn btn-primary" onClick={addCity} disabled={saving}>+ Добавить</button>
-            </div>
-          </div>
-          <div className="order-list">
-            {cities.map(c => (
-              <div key={c.id} className="order-card">
-                <p className="order-restaurant">🏙️ {c.name}</p>
-              </div>
-            ))}
-            {cities.length === 0 && <div className="empty">Городов пока нет</div>}
-          </div>
-        </div>
-      )}
-
-      {tab === "businesses" && (
-        <div>
-          <div className="card" style={{ marginBottom: 20 }}>
-            <h2 className="section-title">Добавить бизнес</h2>
-            <div className="form">
-              <input className="form-input" placeholder="Название бизнеса" value={newBizName} onChange={e => setNewBizName(e.target.value)} />
-              <select className="form-input" value={newBizCity} onChange={e => setNewBizCity(e.target.value)}>
-                <option value="">— выбрать город —</option>
-                {cities.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-              <button className="btn btn-primary" onClick={addBusiness} disabled={saving}>+ Добавить</button>
-            </div>
-          </div>
-          <div className="order-list">
-            {businesses.map(b => (
-              <div key={b.id} className="order-card">
-                <p className="order-restaurant">🏢 {b.name}</p>
-                <p className="order-address">🏙️ {cities.find(c => c.id === b.cityId)?.name || b.cityId}</p>
-              </div>
-            ))}
-            {businesses.length === 0 && <div className="empty">Бизнесов пока нет</div>}
           </div>
         </div>
       )}
