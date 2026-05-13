@@ -1,11 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { signOut } from "firebase/auth";
-import {
-  collection, addDoc, onSnapshot, doc,
-  setDoc, serverTimestamp, query, orderBy
-} from "firebase/firestore";
+import { collection, addDoc, onSnapshot, serverTimestamp, query, orderBy } from "firebase/firestore";
 import { auth, db } from "../firebase";
 import { useAuth } from "../context/AuthContext";
+import { createInvite } from "../data/invites";
 
 const ROLES = ["director", "dispatcher", "restaurant", "courier", "analytics"];
 const ROLE_LABELS = {
@@ -20,25 +18,21 @@ const ROLE_LABELS = {
 export default function SuperAdmin() {
   const { user } = useAuth();
   const [tab, setTab] = useState("users");
-
-  // Users
   const [users, setUsers] = useState([]);
   const [cities, setCities] = useState([]);
   const [businesses, setBusinesses] = useState([]);
+  const [invites, setInvites] = useState([]);
 
-  // Forms
-  const [newPhone, setNewPhone] = useState("");
-  const [newRole, setNewRole] = useState("courier");
   const [newName, setNewName] = useState("");
+  const [newRole, setNewRole] = useState("courier");
   const [newCityId, setNewCityId] = useState("");
   const [newBusinessId, setNewBusinessId] = useState("");
-
   const [newCityName, setNewCityName] = useState("");
   const [newBizName, setNewBizName] = useState("");
   const [newBizCity, setNewBizCity] = useState("");
-
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
+  const [generatedCode, setGeneratedCode] = useState("");
 
   useEffect(() => {
     const u = onSnapshot(query(collection(db, "users"), orderBy("createdAt", "desc")), s =>
@@ -47,10 +41,12 @@ export default function SuperAdmin() {
       setCities(s.docs.map(d => ({ id: d.id, ...d.data() }))));
     const b = onSnapshot(collection(db, "businesses"), s =>
       setBusinesses(s.docs.map(d => ({ id: d.id, ...d.data() }))));
-    return () => { u(); c(); b(); };
+    const i = onSnapshot(query(collection(db, "invites"), orderBy("createdAt", "desc")), s =>
+      setInvites(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+    return () => { u(); c(); b(); i(); };
   }, []);
 
-  const flash = (text) => { setMsg(text); setTimeout(() => setMsg(""), 3000); };
+  const flash = (text) => { setMsg(text); setTimeout(() => setMsg(""), 5000); };
 
   const addCity = async () => {
     if (!newCityName.trim()) return;
@@ -65,39 +61,32 @@ export default function SuperAdmin() {
     if (!newBizName.trim() || !newBizCity) return;
     setSaving(true);
     await addDoc(collection(db, "businesses"), {
-      name: newBizName.trim(),
-      cityId: newBizCity,
-      createdAt: serverTimestamp()
+      name: newBizName.trim(), cityId: newBizCity, createdAt: serverTimestamp()
     });
     setNewBizName("");
     flash("Бизнес добавлен ✓");
     setSaving(false);
   };
 
-  // Создаём профиль пользователя вручную (по номеру телефона)
-  // После первого входа пользователя через SMS его uid появится в Auth,
-  // но мы можем заранее создать запись — она подхватится по uid после входа.
-  // Здесь создаём запись по номеру телефона как pending-профиль.
   const addUser = async () => {
-    if (!newPhone.trim() || !newName.trim()) return;
+    if (!newName.trim()) return;
     setSaving(true);
-    const phone = newPhone.startsWith("+") ? newPhone.trim() : "+7" + newPhone.replace(/\D/g, "").slice(-10);
-    // Используем номер как временный ключ — после входа uid перезапишется в AuthContext
-    await addDoc(collection(db, "pendingUsers"), {
-      phone,
+    const code = await createInvite({
       name: newName.trim(),
       role: newRole,
-      cityId: newCityId,
       businessId: newBusinessId,
-      createdAt: serverTimestamp(),
+      cityId: newCityId,
+      createdBy: user.uid,
     });
-    setNewPhone(""); setNewName(""); setNewCityId(""); setNewBusinessId("");
-    flash("Пользователь добавлен ✓ (станет активным после первого входа)");
+    setGeneratedCode(code);
+    setNewName(""); setNewCityId(""); setNewBusinessId("");
+    flash(`Код приглашения создан: ${code}`);
     setSaving(false);
   };
 
   const TABS = [
     { id: "users", label: "👥 Пользователи" },
+    { id: "invites", label: "🎫 Приглашения" },
     { id: "cities", label: "🏙️ Города" },
     { id: "businesses", label: "🏢 Бизнесы" },
   ];
@@ -109,7 +98,29 @@ export default function SuperAdmin() {
         <button className="nav-exit" onClick={() => signOut(auth)}>Выйти</button>
       </header>
 
-      {msg && <div className="success-banner">{msg}</div>}
+      {msg && (
+        <div className="success-banner" style={{ fontSize: "1rem", fontWeight: 700 }}>
+          {msg}
+        </div>
+      )}
+
+      {generatedCode && (
+        <div className="card" style={{ marginBottom: 16, textAlign: "center" }}>
+          <p className="section-title">Код приглашения</p>
+          <p style={{ fontSize: "2rem", fontWeight: 900, letterSpacing: "0.2em", color: "var(--accent)", margin: "12px 0" }}>
+            {generatedCode}
+          </p>
+          <p style={{ color: "var(--muted)", fontSize: "0.82rem" }}>
+            Отправьте этот код пользователю. Он введёт его при регистрации.
+          </p>
+          <button className="btn btn-primary" style={{ marginTop: 12 }} onClick={() => {
+            navigator.clipboard?.writeText(generatedCode);
+            flash("Код скопирован ✓");
+          }}>
+            Скопировать
+          </button>
+        </div>
+      )}
 
       <div className="tab-bar">
         {TABS.map(t => (
@@ -119,16 +130,13 @@ export default function SuperAdmin() {
         ))}
       </div>
 
-      {/* ── Пользователи ── */}
       {tab === "users" && (
         <div>
           <div className="card" style={{ marginBottom: 20 }}>
-            <h2 className="section-title">Добавить пользователя</h2>
+            <h2 className="section-title">Создать приглашение</h2>
             <div className="form">
               <label className="form-label">Имя</label>
               <input className="form-input" placeholder="Алибек" value={newName} onChange={e => setNewName(e.target.value)} />
-              <label className="form-label">Номер телефона</label>
-              <input className="form-input" placeholder="+7 700 000 0000" value={newPhone} onChange={e => setNewPhone(e.target.value)} />
               <label className="form-label">Роль</label>
               <select className="form-input" value={newRole} onChange={e => setNewRole(e.target.value)}>
                 {ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
@@ -146,7 +154,7 @@ export default function SuperAdmin() {
                 )}
               </select>
               <button className="btn btn-primary" onClick={addUser} disabled={saving}>
-                + Добавить
+                🎫 Создать код приглашения
               </button>
             </div>
           </div>
@@ -158,7 +166,7 @@ export default function SuperAdmin() {
                 <div className="order-card-top">
                   <div>
                     <p className="order-restaurant">{u.name || "Без имени"}</p>
-                    <p className="order-address">📱 {u.phone}</p>
+                    <p className="order-address">📧 {u.email}</p>
                     <p className="order-client">
                       {cities.find(c => c.id === u.cityId)?.name || "—"} •{" "}
                       {businesses.find(b => b.id === u.businessId)?.name || "—"}
@@ -175,7 +183,47 @@ export default function SuperAdmin() {
         </div>
       )}
 
-      {/* ── Города ── */}
+      {tab === "invites" && (
+        <div>
+          <h2 className="section-title">Активные приглашения</h2>
+          <div className="order-list">
+            {invites.filter(i => !i.used).map(i => (
+              <div key={i.id} className="order-card">
+                <div className="order-card-top">
+                  <div>
+                    <p className="order-restaurant">{i.name}</p>
+                    <p className="order-address">{ROLE_LABELS[i.role] || i.role}</p>
+                  </div>
+                  <div className="order-right">
+                    <span style={{ fontSize: "1.1rem", fontWeight: 900, letterSpacing: "0.1em", color: "var(--accent)" }}>
+                      {i.code}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+            {invites.filter(i => !i.used).length === 0 && <div className="empty">Нет активных приглашений</div>}
+          </div>
+
+          <h2 className="section-title" style={{ marginTop: 24 }}>Использованные</h2>
+          <div className="order-list">
+            {invites.filter(i => i.used).map(i => (
+              <div key={i.id} className="order-card" style={{ opacity: 0.5 }}>
+                <div className="order-card-top">
+                  <div>
+                    <p className="order-restaurant">{i.name}</p>
+                    <p className="order-address">{ROLE_LABELS[i.role] || i.role}</p>
+                  </div>
+                  <span className="status-pill" style={{ background: "#6b728033", color: "#9ca3af" }}>
+                    Использован
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {tab === "cities" && (
         <div>
           <div className="card" style={{ marginBottom: 20 }}>
@@ -189,7 +237,6 @@ export default function SuperAdmin() {
             {cities.map(c => (
               <div key={c.id} className="order-card">
                 <p className="order-restaurant">🏙️ {c.name}</p>
-                <p className="order-address" style={{ fontSize: 11 }}>ID: {c.id}</p>
               </div>
             ))}
             {cities.length === 0 && <div className="empty">Городов пока нет</div>}
@@ -197,7 +244,6 @@ export default function SuperAdmin() {
         </div>
       )}
 
-      {/* ── Бизнесы ── */}
       {tab === "businesses" && (
         <div>
           <div className="card" style={{ marginBottom: 20 }}>
@@ -216,7 +262,6 @@ export default function SuperAdmin() {
               <div key={b.id} className="order-card">
                 <p className="order-restaurant">🏢 {b.name}</p>
                 <p className="order-address">🏙️ {cities.find(c => c.id === b.cityId)?.name || b.cityId}</p>
-                <p className="order-address" style={{ fontSize: 11 }}>ID: {b.id}</p>
               </div>
             ))}
             {businesses.length === 0 && <div className="empty">Бизнесов пока нет</div>}
@@ -225,5 +270,4 @@ export default function SuperAdmin() {
       )}
     </div>
   );
-                  }
-                      
+}
