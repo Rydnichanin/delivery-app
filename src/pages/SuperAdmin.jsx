@@ -1,3 +1,4 @@
+cat > /mnt/user-data/outputs/delivery-app/src/pages/SuperAdmin.jsx << 'EOF'
 import React, { useState, useEffect } from "react";
 import { signOut } from "firebase/auth";
 import { collection, addDoc, onSnapshot, serverTimestamp, query, orderBy } from "firebase/firestore";
@@ -14,11 +15,12 @@ const ROLE_LABELS = {
 
 export default function SuperAdmin() {
   const { user } = useAuth();
-  const [tab, setTab] = useState("businesses");
+  const [tab, setTab] = useState("cities");
   const [users, setUsers] = useState([]);
   const [cities, setCities] = useState([]);
   const [businesses, setBusinesses] = useState([]);
   const [invites, setInvites] = useState([]);
+  const [selectedCity, setSelectedCity] = useState(null);
   const [selectedBusiness, setSelectedBusiness] = useState(null);
 
   const [newName, setNewName] = useState("");
@@ -27,7 +29,6 @@ export default function SuperAdmin() {
   const [newBusinessId, setNewBusinessId] = useState("");
   const [newCityName, setNewCityName] = useState("");
   const [newBizName, setNewBizName] = useState("");
-  const [newBizCity, setNewBizCity] = useState("");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
   const [generatedCode, setGeneratedCode] = useState("");
@@ -56,10 +57,10 @@ export default function SuperAdmin() {
   };
 
   const addBusiness = async () => {
-    if (!newBizName.trim() || !newBizCity) return;
+    if (!newBizName.trim() || !selectedCity) return;
     setSaving(true);
     await addDoc(collection(db, "businesses"), {
-      name: newBizName.trim(), cityId: newBizCity, createdAt: serverTimestamp()
+      name: newBizName.trim(), cityId: selectedCity.id, createdAt: serverTimestamp()
     });
     setNewBizName("");
     flash("Бизнес добавлен ✓");
@@ -80,13 +81,12 @@ export default function SuperAdmin() {
   };
 
   const TABS = [
-    { id: "businesses", label: "🏢 Бизнесы" },
     { id: "cities", label: "🏙️ Города" },
     { id: "users", label: "👥 Пользователи" },
     { id: "invites", label: "🎫 Приглашения" },
   ];
 
-  // Открыт конкретный бизнес
+  // ── Открыт конкретный бизнес ──
   if (selectedBusiness) {
     return (
       <div className="page">
@@ -104,6 +104,70 @@ export default function SuperAdmin() {
     );
   }
 
+  // ── Открыт конкретный город — показываем его бизнесы ──
+  if (selectedCity) {
+    const cityBusinesses = businesses.filter(b => b.cityId === selectedCity.id);
+    return (
+      <div className="page">
+        <header className="page-header">
+          <h1>🔧 Супер-админ</h1>
+          <button className="nav-exit" onClick={() => signOut(auth)}>Выйти</button>
+        </header>
+
+        <button className="btn-link" onClick={() => setSelectedCity(null)} style={{ marginBottom: 12 }}>
+          ← Все города
+        </button>
+
+        <div className="card" style={{ marginBottom: 16 }}>
+          <p style={{ fontWeight: 800, fontSize: "1.2rem" }}>🏙️ {selectedCity.name}</p>
+          <p style={{ color: "var(--muted)", fontSize: "0.85rem" }}>
+            Бизнесов: {cityBusinesses.length}
+          </p>
+        </div>
+
+        {msg && <div className="success-banner">{msg}</div>}
+
+        {/* Добавить бизнес в этот город */}
+        <div className="card" style={{ marginBottom: 16 }}>
+          <h2 className="section-title">Добавить бизнес</h2>
+          <div className="form">
+            <input
+              className="form-input"
+              placeholder="Название бизнеса"
+              value={newBizName}
+              onChange={e => setNewBizName(e.target.value)}
+            />
+            <button className="btn btn-primary" onClick={addBusiness} disabled={saving}>
+              + Добавить
+            </button>
+          </div>
+        </div>
+
+        <h2 className="section-title">Бизнесы в городе ({cityBusinesses.length})</h2>
+        <div className="order-list">
+          {cityBusinesses.map(b => (
+            <div key={b.id} className="order-card" style={{ cursor: "pointer" }}
+              onClick={() => setSelectedBusiness(b)}>
+              <div className="order-card-top">
+                <div>
+                  <p className="order-restaurant">🏢 {b.name}</p>
+                  <p className="order-address">
+                    {users.filter(u => u.businessId === b.id).length} пользователей
+                  </p>
+                </div>
+                <span style={{ color: "var(--accent)", fontSize: "1.2rem" }}>→</span>
+              </div>
+            </div>
+          ))}
+          {cityBusinesses.length === 0 && (
+            <div className="empty">В этом городе пока нет бизнесов</div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Главный экран ──
   return (
     <div className="page">
       <header className="page-header">
@@ -134,40 +198,6 @@ export default function SuperAdmin() {
         ))}
       </div>
 
-      {/* ── Бизнесы ── */}
-      {tab === "businesses" && (
-        <div>
-          <div className="card" style={{ marginBottom: 16 }}>
-            <h2 className="section-title">Добавить бизнес</h2>
-            <div className="form">
-              <input className="form-input" placeholder="Название бизнеса" value={newBizName} onChange={e => setNewBizName(e.target.value)} />
-              <select className="form-input" value={newBizCity} onChange={e => setNewBizCity(e.target.value)}>
-                <option value="">— выбрать город —</option>
-                {cities.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-              <button className="btn btn-primary" onClick={addBusiness} disabled={saving}>+ Добавить</button>
-            </div>
-          </div>
-
-          <h2 className="section-title">Все бизнесы ({businesses.length})</h2>
-          <div className="order-list">
-            {businesses.map(b => (
-              <div key={b.id} className="order-card" style={{ cursor: "pointer" }}
-                onClick={() => setSelectedBusiness(b)}>
-                <div className="order-card-top">
-                  <div>
-                    <p className="order-restaurant">🏢 {b.name}</p>
-                    <p className="order-address">🏙️ {cities.find(c => c.id === b.cityId)?.name || "—"}</p>
-                  </div>
-                  <span style={{ color: "var(--accent)", fontSize: "1.2rem" }}>→</span>
-                </div>
-              </div>
-            ))}
-            {businesses.length === 0 && <div className="empty">Бизнесов пока нет</div>}
-          </div>
-        </div>
-      )}
-
       {/* ── Города ── */}
       {tab === "cities" && (
         <div>
@@ -178,12 +208,24 @@ export default function SuperAdmin() {
               <button className="btn btn-primary" onClick={addCity} disabled={saving}>+ Добавить</button>
             </div>
           </div>
+
+          <h2 className="section-title">Все города ({cities.length})</h2>
           <div className="order-list">
-            {cities.map(c => (
-              <div key={c.id} className="order-card">
-                <p className="order-restaurant">🏙️ {c.name}</p>
-              </div>
-            ))}
+            {cities.map(c => {
+              const count = businesses.filter(b => b.cityId === c.id).length;
+              return (
+                <div key={c.id} className="order-card" style={{ cursor: "pointer" }}
+                  onClick={() => setSelectedCity(c)}>
+                  <div className="order-card-top">
+                    <div>
+                      <p className="order-restaurant">🏙️ {c.name}</p>
+                      <p className="order-address">{count} бизнесов</p>
+                    </div>
+                    <span style={{ color: "var(--accent)", fontSize: "1.2rem" }}>→</span>
+                  </div>
+                </div>
+              );
+            })}
             {cities.length === 0 && <div className="empty">Городов пока нет</div>}
           </div>
         </div>
@@ -285,3 +327,4 @@ export default function SuperAdmin() {
     </div>
   );
 }
+EOF
