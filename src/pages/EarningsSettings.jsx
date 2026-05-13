@@ -5,18 +5,18 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase";
 
-// Настройка заработка для одного бизнеса
+const DEFAULT_TARIFF = { name: "", clientPrice: "", courierEarning: "" };
+
 export default function EarningsSettings({ businessId, onBack }) {
   const [restaurants, setRestaurants] = useState([]);
   const [couriers, setCouriers] = useState([]);
-  const [settings, setSettings] = useState({});
-  const [salaries, setSalaries] = useState({});
+  const [tariffs, setTariffs] = useState({});   // { restaurantId: [ {name, clientPrice, courierEarning} ] }
+  const [salaries, setSalaries] = useState({}); // { courierId: number }
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
 
   useEffect(() => {
     if (!businessId) return;
-
     const r = onSnapshot(
       query(collection(db, "restaurants"), where("businessId", "==", businessId)),
       s => setRestaurants(s.docs.map(d => ({ id: d.id, ...d.data() })))
@@ -25,27 +25,41 @@ export default function EarningsSettings({ businessId, onBack }) {
       query(collection(db, "users"), where("businessId", "==", businessId), where("role", "==", "courier")),
       s => setCouriers(s.docs.map(d => ({ id: d.id, ...d.data() })))
     );
-    // Загружаем настройки заработка
     const e = onSnapshot(doc(db, "earningsSettings", businessId), snap => {
       if (snap.exists()) {
-        setSettings(snap.data().byRestaurant || {});
+        setTariffs(snap.data().tariffs || {});
         setSalaries(snap.data().salaries || {});
       }
     });
-
     return () => { r(); c(); e(); };
   }, [businessId]);
 
   const flash = (text) => { setMsg(text); setTimeout(() => setMsg(""), 3000); };
 
-  const updateRestaurantRate = (restaurantId, field, value) => {
-    setSettings(prev => ({
+  // Добавить тариф к заведению
+  const addTariff = (restaurantId) => {
+    setTariffs(prev => ({
       ...prev,
-      [restaurantId]: {
-        ...prev[restaurantId],
-        [field]: +value
-      }
+      [restaurantId]: [...(prev[restaurantId] || []), { ...DEFAULT_TARIFF }]
     }));
+  };
+
+  // Изменить поле тарифа
+  const updateTariff = (restaurantId, index, field, value) => {
+    setTariffs(prev => {
+      const list = [...(prev[restaurantId] || [])];
+      list[index] = { ...list[index], [field]: value };
+      return { ...prev, [restaurantId]: list };
+    });
+  };
+
+  // Удалить тариф
+  const removeTariff = (restaurantId, index) => {
+    setTariffs(prev => {
+      const list = [...(prev[restaurantId] || [])];
+      list.splice(index, 1);
+      return { ...prev, [restaurantId]: list };
+    });
   };
 
   const updateSalary = (courierId, value) => {
@@ -55,7 +69,7 @@ export default function EarningsSettings({ businessId, onBack }) {
   const save = async () => {
     setSaving(true);
     await setDoc(doc(db, "earningsSettings", businessId), {
-      byRestaurant: settings,
+      tariffs,
       salaries,
       updatedAt: serverTimestamp(),
     }, { merge: true });
@@ -71,86 +85,120 @@ export default function EarningsSettings({ businessId, onBack }) {
 
       {msg && <div className="success-banner">{msg}</div>}
 
-      {/* ── Ставки по заведениям ── */}
-      <div className="card" style={{ marginBottom: 16 }}>
-        <h2 className="section-title">Ставки по заведениям</h2>
-        <p style={{ color: "var(--muted)", fontSize: "0.82rem", marginBottom: 12 }}>
-          Сколько курьер получает за доставку от каждого заведения
-        </p>
+      {/* ── Тарифы по заведениям ── */}
+      {restaurants.length === 0 && (
+        <div className="empty">Сначала добавьте заведения к этому бизнесу</div>
+      )}
 
-        {restaurants.length === 0 && (
-          <div className="empty">Сначала добавьте заведения к этому бизнесу</div>
-        )}
+      {restaurants.map(r => (
+        <div key={r.id} className="card" style={{ marginBottom: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <p style={{ fontWeight: 700, fontSize: "1rem" }}>🍴 {r.name}</p>
+            <button
+              className="btn btn-primary"
+              style={{ padding: "6px 14px", fontSize: "0.85rem" }}
+              onClick={() => addTariff(r.id)}
+            >
+              + Добавить тариф
+            </button>
+          </div>
 
-        {restaurants.map(r => (
-          <div key={r.id} style={{ marginBottom: 20, paddingBottom: 20, borderBottom: "1px solid var(--border)" }}>
-            <p style={{ fontWeight: 700, marginBottom: 10 }}>🍴 {r.name}</p>
-            <div className="form">
-              <label className="form-label">Базовая ставка за заказ (₸)</label>
+          {(!tariffs[r.id] || tariffs[r.id].length === 0) && (
+            <p style={{ color: "var(--muted)", fontSize: "0.82rem" }}>
+              Нет тарифов — нажмите "+ Добавить тариф"
+            </p>
+          )}
+
+          {(tariffs[r.id] || []).map((t, i) => (
+            <div key={i} style={{
+              background: "var(--bg)",
+              border: "1px solid var(--border)",
+              borderRadius: 12,
+              padding: 14,
+              marginBottom: 10,
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <p style={{ fontWeight: 600, fontSize: "0.88rem", color: "var(--accent)" }}>
+                  Тариф #{i + 1}
+                </p>
+                <button
+                  onClick={() => removeTariff(r.id, i)}
+                  style={{
+                    background: "none", border: "none",
+                    color: "var(--red)", cursor: "pointer", fontSize: "1.1rem"
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+
+              <label className="form-label">Название тарифа</label>
               <input
                 className="form-input"
-                type="number"
-                value={settings[r.id]?.baseRate || ""}
-                placeholder="500"
-                onChange={e => updateRestaurantRate(r.id, "baseRate", e.target.value)}
+                placeholder="До подъезда"
+                value={t.name}
+                onChange={e => updateTariff(r.id, i, "name", e.target.value)}
+                style={{ marginBottom: 8 }}
               />
-              <label className="form-label">До подъезда (₸)</label>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                <div>
+                  <label className="form-label">Клиент платит (₸)</label>
+                  <input
+                    className="form-input"
+                    type="number"
+                    placeholder="500"
+                    value={t.clientPrice}
+                    onChange={e => updateTariff(r.id, i, "clientPrice", e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="form-label">Курьер получает (₸)</label>
+                  <input
+                    className="form-input"
+                    type="number"
+                    placeholder="300"
+                    value={t.courierEarning}
+                    onChange={e => updateTariff(r.id, i, "courierEarning", e.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ))}
+
+      {/* ── Оклады ── */}
+      {couriers.length > 0 && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <h2 className="section-title">Оклад курьеров (₸/месяц)</h2>
+          <p style={{ color: "var(--muted)", fontSize: "0.82rem", marginBottom: 12 }}>
+            Фиксированная часть зарплаты независимо от количества заказов
+          </p>
+          {couriers.map(c => (
+            <div key={c.id} style={{ marginBottom: 10 }}>
+              <label className="form-label">{c.name}</label>
               <input
                 className="form-input"
                 type="number"
-                value={settings[r.id]?.toEntrance || ""}
-                placeholder="100"
-                onChange={e => updateRestaurantRate(r.id, "toEntrance", e.target.value)}
-              />
-              <label className="form-label">До квартиры (₸)</label>
-              <input
-                className="form-input"
-                type="number"
-                value={settings[r.id]?.toApartment || ""}
-                placeholder="200"
-                onChange={e => updateRestaurantRate(r.id, "toApartment", e.target.value)}
-              />
-              <label className="form-label">% от суммы заказа (если нужен)</label>
-              <input
-                className="form-input"
-                type="number"
-                value={settings[r.id]?.percent || ""}
                 placeholder="0"
-                onChange={e => updateRestaurantRate(r.id, "percent", e.target.value)}
+                value={salaries[c.id] || ""}
+                onChange={e => updateSalary(c.id, e.target.value)}
               />
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
-      {/* ── Оклады курьеров ── */}
-      <div className="card" style={{ marginBottom: 16 }}>
-        <h2 className="section-title">Оклад курьеров (₸/месяц)</h2>
-        <p style={{ color: "var(--muted)", fontSize: "0.82rem", marginBottom: 12 }}>
-          Фиксированная часть зарплаты независимо от заказов
-        </p>
-
-        {couriers.length === 0 && (
-          <div className="empty">Нет курьеров в этом бизнесе</div>
-        )}
-
-        {couriers.map(c => (
-          <div key={c.id} style={{ marginBottom: 12 }}>
-            <label className="form-label">{c.name}</label>
-            <input
-              className="form-input"
-              type="number"
-              value={salaries[c.id] || ""}
-              placeholder="0"
-              onChange={e => updateSalary(c.id, e.target.value)}
-            />
-          </div>
-        ))}
-      </div>
-
-      <button className="btn btn-primary" style={{ width: "100%" }} onClick={save} disabled={saving}>
+      <button
+        className="btn btn-primary"
+        style={{ width: "100%", padding: 14, fontSize: "1rem" }}
+        onClick={save}
+        disabled={saving}
+      >
         {saving ? "Сохранение..." : "💾 Сохранить все настройки"}
       </button>
     </div>
   );
-}
+      }
+        
