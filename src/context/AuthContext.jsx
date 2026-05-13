@@ -1,32 +1,54 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, onSnapshot } from "firebase/firestore";
 import { auth, db } from "../firebase";
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);       // Firebase user
-  const [profile, setProfile] = useState(null); // Firestore profile {role, name, ...}
+  const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        setUser(firebaseUser);
-        const snap = await getDoc(doc(db, "users", firebaseUser.uid));
-        if (snap.exists()) {
-          setProfile(snap.data());
-        } else {
-          setProfile(null);
-        }
-      } else {
-        setUser(null);
-        setProfile(null);
+    let unsubProfile = null;
+
+    const unsubAuth = onAuthStateChanged(auth, (firebaseUser) => {
+      setUser(firebaseUser);
+
+      if (unsubProfile) {
+        unsubProfile();
+        unsubProfile = null;
       }
-      setLoading(false);
+
+      if (firebaseUser) {
+        // Слушаем профиль в реальном времени вместо одного getDoc
+        unsubProfile = onSnapshot(
+          doc(db, "users", firebaseUser.uid),
+          (snap) => {
+            if (snap.exists()) {
+              setProfile({ id: snap.id, ...snap.data() });
+            } else {
+              setProfile(null);
+            }
+            setLoading(false);
+          },
+          (error) => {
+            console.error("Profile error:", error);
+            setProfile(null);
+            setLoading(false);
+          }
+        );
+      } else {
+        setProfile(null);
+        setLoading(false);
+      }
     });
-    return unsub;
+
+    return () => {
+      unsubAuth();
+      if (unsubProfile) unsubProfile();
+    };
   }, []);
 
   return (
