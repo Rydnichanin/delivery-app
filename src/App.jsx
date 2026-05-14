@@ -7,6 +7,7 @@ import Director from "./pages/Director.jsx";
 import Admin from "./pages/Admin.jsx";
 import Restaurant from "./pages/Restaurant.jsx";
 import Courier from "./pages/Courier.jsx";
+import Client from "./pages/Client.jsx";
 import AnalyticsPanel from "./pages/AnalyticsPanel.jsx";
 
 function AppRouter() {
@@ -33,6 +34,7 @@ function AppRouter() {
   if (role === "dispatcher")  return <Admin />;
   if (role === "restaurant")  return <Restaurant />;
   if (role === "courier")     return <Courier />;
+  if (role === "client")      return <Client />;
   if (role === "analytics")   return <AnalyticsPanel />;
 
   return <NoProfile user={user} />;
