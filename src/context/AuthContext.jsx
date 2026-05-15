@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged, signOut } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
 import { auth, db } from "../firebase";
 
@@ -22,7 +22,6 @@ export function AuthProvider({ children }) {
       }
 
       if (firebaseUser) {
-        // Слушаем профиль в реальном времени вместо одного getDoc
         unsubProfile = onSnapshot(
           doc(db, "users", firebaseUser.uid),
           (snap) => {
@@ -51,8 +50,10 @@ export function AuthProvider({ children }) {
     };
   }, []);
 
+  const logout = () => signOut(auth);
+
   return (
-    <AuthContext.Provider value={{ user, profile, loading }}>
+    <AuthContext.Provider value={{ user, profile, loading, logout }}>
       {children}
     </AuthContext.Provider>
   );
