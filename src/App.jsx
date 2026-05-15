@@ -1,4 +1,4 @@
-                   import React, { useState } from "react";
+import React, { useState } from "react";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import NoProfile from "./pages/NoProfile.jsx";
 import SuperAdmin from "./pages/SuperAdmin.jsx";
@@ -11,32 +11,70 @@ import PublicStore from "./pages/PublicStore.jsx";
 import Checkout from "./pages/Checkout.jsx";
 import ClientProfile from "./pages/ClientProfile.jsx";
 import Login from "./pages/Login.jsx";
-import Register from "./pages/Register.jsx";
 
-// Простой внутренний роутер без react-router-dom
+// ── Клиентский флоу: магазин → логин → профиль → оформление ──
 function ClientApp() {
-  const [page, setPage] = useState("store"); // "store" | "checkout" | "profile" | "login" | "register"
+  const [page, setPage] = useState("store"); // store | login | checkout | profile
   const [cart, setCart] = useState([]);
-  const { user, profile, logout } = useAuth();
+  const { user, logout } = useAuth();
 
-  const navigate = (to) => setPage(to);
+  // Login.jsx не принимает onSuccess — следим за user через useEffect.
+  // Когда Firebase обновит user после входа — переходим в profile.
+  React.useEffect(() => {
+    if (user && page === "login") {
+      setPage("profile");
+    }
+  }, [user, page]);
 
-  if (page === "login")    return <Login onSuccess={() => navigate("profile")} onRegister={() => navigate("register")} />;
-  if (page === "register") return <Register onSuccess={() => navigate("profile")} onBack={() => navigate("login")} />;
-  if (page === "checkout") return <Checkout cart={cart} onBack={() => navigate("store")} onSuccess={() => { setCart([]); navigate("profile"); }} />;
-  if (page === "profile")  return <ClientProfile onBack={() => navigate("store")} onLogout={() => { logout(); navigate("store"); }} />;
+  // ── Логин (Login управляет Register внутри себя) ──
+  if (page === "login") {
+    return (
+      <div>
+        <div style={{ padding: "12px 16px" }}>
+          <button className="btn-link" onClick={() => setPage("store")}>
+            ← Вернуться в магазин
+          </button>
+        </div>
+        <Login />
+      </div>
+    );
+  }
 
-  // store — default
+  // ── Оформление заказа ──
+  if (page === "checkout") {
+    return (
+      <Checkout
+        cart={cart}
+        onBack={() => setPage("store")}
+        onSuccess={() => { setCart([]); setPage("profile"); }}
+      />
+    );
+  }
+
+  // ── Профиль клиента ──
+  if (page === "profile") {
+    return (
+      <ClientProfile
+        onBack={() => setPage("store")}
+        onLogout={() => { logout(); setPage("store"); }}
+      />
+    );
+  }
+
+  // ── Магазин (default) ──
+  // PublicStore ожидает: user, cart, setCart, onLoginRequired
+  // onLoginRequired вызывается когда гость нажимает "Оформить"
   return (
     <PublicStore
+      user={user}
       cart={cart}
       setCart={setCart}
-      onCheckout={() => navigate("checkout")}
-      onProfile={() => navigate(user ? "profile" : "login")}
+      onLoginRequired={() => setPage("login")}
     />
   );
 }
 
+// ── Главный роутер по роли ──
 function AppRouter() {
   const { user, profile, loading } = useAuth();
 
@@ -51,11 +89,20 @@ function AppRouter() {
     );
   }
 
-  // Не авторизован — публичный магазин
+  // Не авторизован — публичный магазин с кнопкой "войти"
   if (!user) return <ClientApp />;
 
-  // Авторизован, но нет профиля
-  if (!profile) return <NoProfile user={user} />;
+  // Авторизован, профиль ещё грузится
+  if (!profile) {
+    return (
+      <div className="login-screen">
+        <div className="login-card">
+          <div className="login-logo">⚡</div>
+          <p style={{ color: "var(--muted)", textAlign: "center" }}>Загрузка профиля...</p>
+        </div>
+      </div>
+    );
+  }
 
   const role = profile.role;
 
@@ -67,8 +114,8 @@ function AppRouter() {
   if (role === "analytics")   return <AnalyticsPanel />;
   if (role === "client")      return <ClientApp />;
 
-  // Неизвестная роль — магазин
-  return <ClientApp />;
+  // Профиль есть, но роль неизвестна
+  return <NoProfile user={user} />;
 }
 
 export default function App() {
@@ -78,4 +125,3 @@ export default function App() {
     </AuthProvider>
   );
 }
-                    
